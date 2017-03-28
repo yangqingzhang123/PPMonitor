@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, shrink-to-fit=no, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <title>Mioji PP Monitor</title>
+
+    <!-- Bootstrap Core CSS -->
+    <link href="static/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link href="static/css/ppmonitor.css" rel="stylesheet">
+
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+        <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+        <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+
+</head>
+
+<body>
+
+    <div id="wrapper">
+
+        <!-- Sidebar -->
+        <div id="sidebar-wrapper">
+            <ul class="sidebar-nav">
+                <li class="sidebar-brand">
+                    <a href="#">
+                        Mioji PP Monitor
+                    </a>
+                </li>
+                <li>
+                    <a href="ppscore">ppScore</a>
+                </li>
+                <li>
+                    <a href="ppcity">ppCity</a>
+                </li>
+                <li>
+                    <a href="ppview">ppView</a>
+                </li>
+                <li>
+                    <a href="pptraffic">ppTraffic</a>
+                </li>
+            </ul>
+        </div>
+        <!-- /#sidebar-wrapper -->
+
+        <!-- Page Content -->
+        <div id="page-content-wrapper">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-lg-12">
+                        <h1>PPView Monitor</h1>
+
+                        <form class="well form-inline">
+                            <select id="req_type">
+                                <option value=""> 选择统计类型 </option>
+                                <option value="stat"> 成功率统计 </option>
+                                <option value="kpi"> KPI 统计 </option>
+                            </select>
+
+                            <input id="stat_start_time" type="text" class="input" value="" placeholder="起始日期：20161001" style="display: none">
+                            <input id="stat_end_time" type="text" class="input" value="" placeholder="起始日期：20161001" style="display: none">
+                            <input id="kpi_time" type="text" class="input" value="" placeholder="截止日期：20161007" style="display: none">
+
+                            <select id="env_name" style="display: none">
+                                <option value="test"> 测试环境 </option>
+                                <option value="online"> 线上环境 </option>
+                            </select>
+
+                            <button id="query" class="btn btn-primary"> Query </button>
+                        </form>
+                        <div id="chart" style="width: 1024px;height:500px;"></div>
+                        <div id="chart2" style="width: 1024px;height:500px; display: none"></div>
+                        <div id="chart3" style="width: 1024px;height:500px; display: none"></div>
+                        <div id="chart4" style="width: 1024px;height:500px; display: none"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- /#page-content-wrapper -->
+
+    </div>
+    <!-- /#wrapper -->
+
+    <!-- jQuery -->
+    <script src="static/js/jquery.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="static/js/bootstrap.min.js"></script>
+
+    <!-- Menu Toggle Script -->
+    <script>
+    $("#menu-toggle").click(function(e) {
+        e.preventDefault();
+        $("#wrapper").toggleClass("toggled");
+    });
+
+    </script>
+
+    <!-- chart js -->
+    <script src="static/js/echarts.common.min.js"></script>
+    <script>
+        $('select[id="req_type"]').change(function () {
+            if ($(this).val() == "stat") {
+                $('#kpi_time').hide();
+                $('#stat_start_time').show();
+                $('#stat_end_time').show();
+                $('#env_name').show();
+                var date_now = new Date();
+                var start_date;
+                var end_date;
+                date_now.setDate(date_now.getDate()-1);
+                end_date = date_now.toISOString().slice(0,10).replace(/-/g,"");
+                date_now.setDate(date_now.getDate()-8);
+                start_date = date_now.toISOString().slice(0,10).replace(/-/g,"");
+                document.getElementById("stat_start_time").value = start_date;
+                document.getElementById("stat_end_time").value = end_date;
+            }
+            else if ($(this).val() == "kpi") {
+                $('#stat_start_time').hide();
+                $('#stat_end_time').hide();
+                $('#env_name').hide();
+                $('#kpi_time').show();
+                var date_now = new Date();
+                var start_date;
+                date_now.setDate(date_now.getDate());
+                start_date = date_now.toISOString().slice(0,8).replace(/-/g,"");
+                document.getElementById("kpi_time").value = start_date;
+            }
+        });
+
+        $(document).ready(function () {
+
+            $('#query').click(function (event) {
+                var data = {
+                    type: $("#req_type").val(),
+                    stat_start_time: $("#stat_start_time").val(),
+                    stat_end_time: $("#stat_end_time").val(),
+                    kpi_time: $("#kpi_time").val(),
+                    env_name: $("#env_name").val()
+                }
+                var dataToSend = JSON.stringify(data);
+
+            $.ajax({
+                url: 'ppview',
+                type: 'POST',
+                data: dataToSend,
+
+                success: function (jsonResponse) {
+                    stat_data = JSON.parse(jsonResponse);
+
+                    stat_data.tooltip.formatter = function(params, ticket, callback){
+                        console.log(params);
+                        var res = params[0].name + " 统计 :";
+                        for (var i = 0, l = params.length; i < l; i++) {
+                            var success_rate = params[i].data.value;
+                            res += "<br/>" + params[i].data.name + "; 数量: " + params[i].data.success + "/" + params[i].data.count  + "; 比例: " + success_rate.toFixed(2) + "%";
+                        }
+                        var env_name;
+                        if (data["type"] == "kpi") {
+                            env_name = "kpi_info";
+                        } else {
+                            env_name = params[0].data.env;
+                        }
+                        callback(ticket, add_pie(params[0].name, env_name));
+                        return res;
+                    };
+
+                    var myChart = echarts.init(document.getElementById('chart'));
+                    myChart.setOption(stat_data);
+                },
+                error: function () {
+                    alert("Hello! query failed!");
+                }
+            });
+
+            event.preventDefault();
+            });
+        });
+
+        function add_pie(params, env_name){
+
+            if (env_name == "kpi_info"){
+                data = {
+                    date: params,
+                    type: "kpi_info"
+                }
+            } else {
+                data = {
+                    date: params,
+                    type: "error",
+                    "env": env_name
+                }
+            }
+
+            var dataToSend = JSON.stringify(data);
+
+            $.ajax({
+                url: 'ppview',
+                type: 'POST',
+                data: dataToSend,
+
+                success: function (jsonResponse) {
+
+                    var chart_ele2 = document.getElementById("chart2");
+                    var chart_ele3 = document.getElementById("chart3");
+                    var chart_ele4 = document.getElementById("chart4");
+                    $(chart_ele2).show();
+                    $(chart_ele3).show();
+                    $(chart_ele4).show();
+
+                    var myChart2 = echarts.init(document.getElementById('chart2'));
+                    var myChart3 = echarts.init(document.getElementById('chart3'));
+                    var myChart4 = echarts.init(document.getElementById('chart4'));
+
+                    stat_data = JSON.parse(jsonResponse);
+                    if (data["type"] == "error"){
+                        var chart2_data = stat_data["success"];
+                        var chart3_data = stat_data["error"];
+                        var chart4_data = stat_data["ssv005"];
+                    } else {
+                        var chart2_data = stat_data["error"];
+                        var chart3_data = stat_data["best"];
+                        var chart4_data = stat_data["thrown"];
+                    }
+
+                    myChart2.setOption(chart2_data);
+                    myChart3.setOption(chart3_data);
+                    myChart4.setOption(chart4_data);
+
+                },
+                error: function () {
+                    alert("Hello! query failed!");
+                }
+            });
+        }
+
+    </script>
+
+    <style>
+        #query_time {
+            width: 200px;
+            height: 28px;
+            background: white;
+        }
+
+        #req_type {
+            width: 200px;
+            height: 28px;
+            background: white;
+        }
+
+        #req_type select {
+            background: transparent;
+            width: 170px;
+            font-size:7pt;
+            color:blue;
+            border: 0;
+            border-radius: 0;
+            height: 28px;
+            -webkit-appearance: none;
+        }
+
+        #req_type select:focus {
+            outline: none;
+        }
+
+        #env_name {
+            width: 200px;
+            height: 28px;
+            background: white;
+        }
+
+        #env_name select {
+            background: transparent;
+            width: 170px;
+            font-size:7pt;
+            color:blue;
+            border: 0;
+            border-radius: 0;
+            height: 28px;
+            -webkit-appearance: none;
+        }
+
+        #env_name select:focus {
+            outline: none;
+        }
+
+    </style>
+
+</body>
+
+</html>

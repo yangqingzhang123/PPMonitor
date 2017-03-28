@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, shrink-to-fit=no, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <title>Mioji PP Monitor</title>
+
+    <!-- Bootstrap Core CSS -->
+    <link href="static/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link href="static/css/ppmonitor.css" rel="stylesheet">
+
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+        <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+        <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+
+</head>
+
+<body>
+
+    <div id="wrapper">
+
+        <!-- Sidebar -->
+        <div id="sidebar-wrapper">
+            <ul class="sidebar-nav">
+                <li class="sidebar-brand">
+                    <a href="#">
+                        Mioji PP Monitor
+                    </a>
+                </li>
+                <li>
+                    <a href="ppscore">ppScore</a>
+                </li>
+                <li>
+                    <a href="ppcity">ppCity</a>
+                <li>
+                    <a href="ppview">ppView</a>
+                </li>
+                </li>
+                <li>
+                    <a href="pptraffic">ppTraffic</a>
+                </li>
+            </ul>
+        </div>
+        <!-- /#sidebar-wrapper -->
+
+        <!-- Page Content -->
+        <div id="page-content-wrapper">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-lg-12">
+                        <h1>PPCity Monitor</h1>
+
+                        <form class="well form-inline">
+                            <select id="time_slot">
+                                <option value=""> 选择时间间隔 </option>
+                                <option value="day"> Day </option>
+                            </select>
+
+                            <input id="day_start_time" type="text" class="input" value="" placeholder="起始日期：20161001" style="display: none">
+                            <input id="day_end_time" type="text" class="input" value="" placeholder="截止日期：20161007" style="display: none">
+                            <input id="hour_start_time" type="text" class="input" value="" placeholder="起始日期：20161001" style="display: none">
+
+                            <button id="query" class="btn btn-primary"> Query </button>
+                        </form>
+                        <div id="chart" style="width: 1024px;height:500px;"></div>
+                        <div id="chart2" style="width: 1024px;height:400px; display: none"></div>
+                        <div id="qid" style="width: 1024px;height:700px; display: none"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- /#page-content-wrapper -->
+
+    </div>
+    <!-- /#wrapper -->
+
+    <!-- jQuery -->
+    <script src="static/js/jquery.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="static/js/bootstrap.min.js"></script>
+
+    <!-- Menu Toggle Script -->
+    <script>
+    $("#menu-toggle").click(function(e) {
+        e.preventDefault();
+        $("#wrapper").toggleClass("toggled");
+    });
+
+    </script>
+
+    <!-- chart js -->
+    <script src="static/js/echarts.common.min.js"></script>
+    <script>
+        $('select[id="time_slot"]').change(function () {
+            if ($(this).val() == "day") {
+                $('#hour_start_time').hide();
+                $('#day_start_time').show();
+                $('#day_end_time').show();
+                var date_now = new Date();
+                var start_date;
+                var end_date;
+                date_now.setDate(date_now.getDate());
+                end_date = date_now.toISOString().slice(0,10).replace(/-/g,"");
+                date_now.setDate(date_now.getDate()-7)
+                start_date = date_now.toISOString().slice(0,10).replace(/-/g,"");
+                document.getElementById("day_start_time").value = start_date;
+                document.getElementById("day_end_time").value = end_date;
+            }
+        });
+
+        $(document).ready(function () {
+
+            $('#query').click(function (event) {
+                var data = {
+                    type: "stat",
+                    time_slot: $("#time_slot").val(),
+                    hour_start_time: $("#hour_start_time").val(),
+                    day_start_time: $("#day_start_time").val(),
+                    day_end_time: $("#day_end_time").val()
+                }
+                var dataToSend = JSON.stringify(data);
+
+            $.ajax({
+                url: 'ppcity',
+                type: 'POST',
+                data: dataToSend,
+
+                success: function (jsonResponse) {
+                    stat_data = JSON.parse(jsonResponse);
+
+                    stat_data.tooltip.formatter = function(params, ticket, callback){
+                        var res = params[0].name + ' 统计 :';
+                        for (var i = 0, l = params.length; i < l; i++) {
+                            var success_rate = params[i].data.value;
+                            res += "<br/>" + params[i].data.name + "; 数量: " + params[i].data.success + "/" + params[i].data.count  + "; 比例: " + success_rate.toFixed(2) + "%";
+                        }
+                        callback(ticket, add_pie(params[0].name));
+                        return res;
+                    };
+
+                    var myChart = echarts.init(document.getElementById('chart'));
+                    myChart.setOption(stat_data);
+                },
+                error: function () {
+                    alert("Hello! query failed!");
+                }
+            });
+
+            event.preventDefault();
+            });
+        });
+
+        function add_pie(params){
+            data = {
+                date: params,
+                type: "error"
+            }
+            var dataToSend = JSON.stringify(data);
+
+            $.ajax({
+                url: 'ppcity',
+                type: 'POST',
+                data: dataToSend,
+
+                success: function (jsonResponse) {
+                    stat_data = JSON.parse(jsonResponse);
+                    var pie_data = stat_data["pie"];
+                    var chart_ele = document.getElementById("chart2");
+                    $(chart_ele).show();
+                    var myChart = echarts.init(document.getElementById('chart2'));
+                    myChart.setOption(pie_data);
+
+                    var qid_ele = document.getElementById("qid");
+                    var qid_data = stat_data["qid"];
+                    $(qid_ele).show();
+                    $(qid_ele).empty();
+
+                    for (var error_type in qid_data){
+                         $(qid_ele).append('<p> ' + error_type +' : </p>');
+
+                         var each_error_data = qid_data[error_type];
+                         for (var each_qid in each_error_data){
+                             $(qid_ele).append('<p> ' + each_error_data[each_qid] + ' </p>');
+                         }
+                         $(qid_ele).append('<p> </p>');
+                    }
+                },
+                error: function () {
+                    alert("Hello! query failed!");
+                }
+            });
+        }
+
+    </script>
+
+    <style>
+        #query_time {
+            width: 200px;
+            height: 28px;
+            background: white;
+        }
+
+        #time_slot {
+            width: 200px;
+            height: 28px;
+            background: white;
+        }
+
+        #time_slot select {
+            background: transparent;
+            width: 170px;
+            font-size:7pt;
+            color:blue;
+            border: 0;
+            border-radius: 0;
+            height: 28px;
+            -webkit-appearance: none;
+        }
+
+        #time_slot select:focus {
+            outline: none;
+        }
+
+    </style>
+
+</body>
+
+</html>
